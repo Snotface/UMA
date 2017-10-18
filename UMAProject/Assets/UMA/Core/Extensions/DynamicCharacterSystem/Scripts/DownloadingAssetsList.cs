@@ -2,16 +2,13 @@ using UnityEngine;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using UMAAssetBundleManager;
+using UMA.AssetBundles;
 
-namespace UMA
+namespace UMA.CharacterSystem
 {
-
 	[System.Serializable]
 	public class DownloadingAssetsList
 	{
-
-
 		public List<DownloadingAssetItem> downloadingItems = new List<DownloadingAssetItem>();
 		public bool areDownloadedItemsReady = true;
 
@@ -53,46 +50,31 @@ namespace UMA
 				{
 					requiredAssetNameHash = UMAUtils.StringToHash(requiredAssetName);
 				}
+				thisTempAsset = GetTempAsset<T>();
 				if (typeof(T) == typeof(RaceData))
 				{
-					thisTempAsset = ScriptableObject.Instantiate(DynamicAssetLoader.Instance.placeholderRace) as T;
 					(thisTempAsset as RaceData).raceName = requiredAssetName;
 					(thisTempAsset as RaceData).name = requiredAssetName;
 				}
 				else if (typeof(T) == typeof(SlotDataAsset))
 				{
-					thisTempAsset = ScriptableObject.Instantiate(DynamicAssetLoader.Instance.placeholderSlot) as T;
 					(thisTempAsset as SlotDataAsset).name = requiredAssetName;
 					(thisTempAsset as SlotDataAsset).slotName = requiredAssetName;
-					//also needs the name hash
-					(thisTempAsset as SlotDataAsset).nameHash = (int)requiredAssetNameHash;//we can safely force because we just set this above
+					(thisTempAsset as SlotDataAsset).nameHash = (int)requiredAssetNameHash;
 				}
 				else if (typeof(T) == typeof(OverlayDataAsset))
 				{
-					thisTempAsset = ScriptableObject.Instantiate(DynamicAssetLoader.Instance.placeholderOverlay) as T;
 					(thisTempAsset as OverlayDataAsset).name = requiredAssetName;
 					(thisTempAsset as OverlayDataAsset).overlayName = requiredAssetName;
 					(thisTempAsset as OverlayDataAsset).nameHash = (int)requiredAssetNameHash;
 				}
 				else if (typeof(T) == typeof(UMATextRecipe))
 				{
-					if (AssetBundleManager.AssetBundleIndexObject.IsAssetWardrobeRecipe(containingBundle, requiredAssetName))
-					{
-						thisTempAsset = ScriptableObject.Instantiate(DynamicAssetLoader.Instance.placeholderWardrobeRecipe) as T;
-						(thisTempAsset as UMATextRecipe).recipeType = "Wardrobe";
-						(thisTempAsset as UMATextRecipe).wardrobeSlot = AssetBundleManager.AssetBundleIndexObject.AssetWardrobeSlot(containingBundle, requiredAssetName);
-						(thisTempAsset as UMATextRecipe).Hides = AssetBundleManager.AssetBundleIndexObject.AssetWardrobeHides(containingBundle, requiredAssetName);
-						(thisTempAsset as UMATextRecipe).compatibleRaces = AssetBundleManager.AssetBundleIndexObject.AssetWardrobeCompatibleWith(containingBundle, requiredAssetName);
-					}
-					else
-					{
-						thisTempAsset = ScriptableObject.Instantiate(DynamicAssetLoader.Instance.placeholderRace.baseRaceRecipe) as T;
-					}
+					//now that wardrobeRecipes have their own type, we can assume an UMATextRecipe is a full character recipe
 					thisTempAsset.name = requiredAssetName;
 				}
 				else if (typeof(T) == typeof(UMAWardrobeRecipe))
 				{
-					thisTempAsset = ScriptableObject.Instantiate(DynamicAssetLoader.Instance.placeholderWardrobeRecipe) as T;
 					(thisTempAsset as UMAWardrobeRecipe).recipeType = "Wardrobe";
 					(thisTempAsset as UMAWardrobeRecipe).wardrobeSlot = AssetBundleManager.AssetBundleIndexObject.AssetWardrobeSlot(containingBundle, requiredAssetName);
 					(thisTempAsset as UMAWardrobeRecipe).Hides = AssetBundleManager.AssetBundleIndexObject.AssetWardrobeHides(containingBundle, requiredAssetName);
@@ -102,29 +84,18 @@ namespace UMA
 				}
 				else if (typeof(T) == typeof(UMAWardrobeCollection))
 				{
-					thisTempAsset = ScriptableObject.CreateInstance(typeof(T)) as T;
 					(thisTempAsset as UMAWardrobeCollection).recipeType = "WardrobeCollection";
 					(thisTempAsset as UMAWardrobeCollection).wardrobeSlot = AssetBundleManager.AssetBundleIndexObject.AssetWardrobeCollectionSlot(containingBundle, requiredAssetName);
 					(thisTempAsset as UMAWardrobeCollection).compatibleRaces = AssetBundleManager.AssetBundleIndexObject.AssetWardrobeCollectionCompatibleWith(containingBundle, requiredAssetName);
 					thisTempAsset.name = requiredAssetName;
 
 				}
-				else if (typeof(T) == typeof(RuntimeAnimatorController))//Possibly can be removed- just here because we may need to do something else with animators...
+				else if (typeof(T) == typeof(RuntimeAnimatorController))
 				{
-					thisTempAsset = (T)Activator.CreateInstance(typeof(T));
 					(thisTempAsset as RuntimeAnimatorController).name = requiredAssetName;
 				}
 				else
 				{
-					//Need to check for ScriptableObjects here because they require different instantiation
-					if (typeof(ScriptableObject).IsAssignableFrom(typeof(T)))
-					{
-						thisTempAsset = ScriptableObject.CreateInstance(typeof(T)) as T;
-					}
-					else
-					{
-						thisTempAsset = (T)Activator.CreateInstance(typeof(T));
-					}
 					thisTempAsset.name = requiredAssetName;
 				}
 				var thisDlItem = new DownloadingAssetItem(requiredAssetName, thisTempAsset, containingBundle, callback);
@@ -137,7 +108,7 @@ namespace UMA
 					dlItem = downloadingItems.Find(item => item.requiredAssetName == requiredAssetName);
 				if (dlItem != null)
 				{
-					Debug.LogWarning("DownloadingAssetsList already had entry for " + requiredAssetName + " as type " + dlItem.tempAsset.GetType().ToString() + " new request wanted it as type " + typeof(T) + " and its callback was " + dlItem.dynamicCallback[0].Method.Name);
+					//Debug.LogWarning("DownloadingAssetsList already had entry for " + requiredAssetName + " as type " + dlItem.tempAsset.GetType().ToString() + " new request wanted it as type " + typeof(T) + " and its callback was " + dlItem.dynamicCallback[0].Method.Name);
 					if (callback != null)
 						if (!dlItem.dynamicCallback.Contains(callback))
 							dlItem.dynamicCallback.Add(callback);
@@ -146,6 +117,33 @@ namespace UMA
 				else
 				{
 					Debug.LogWarning("Could not get TempAsset for " + requiredAssetName);
+				}
+			}
+			return thisTempAsset;
+		}
+
+		private T GetTempAsset<T>() where T : UnityEngine.Object
+		{
+			T thisTempAsset = null;
+			//we only want the last bit after any assembly
+			var thisTypeName = typeof(T).ToString().Replace(typeof(T).Namespace + ".", "");
+			//check RuntimeAnimatorController because these get called different things in the editor and in game
+			if (typeof(T) == typeof(RuntimeAnimatorController))
+				thisTypeName = "RuntimeAnimatorController";
+			T thisPlaceholder = (T)Resources.Load<T>("PlaceholderAssets/" + thisTypeName + "Placeholder") as T;
+			if (thisPlaceholder != null)//can we assume if an asset was found its a scriptableobject
+			{
+				thisTempAsset = ScriptableObject.Instantiate(thisPlaceholder) as T;
+			}
+			else
+			{
+				if (typeof(ScriptableObject).IsAssignableFrom(typeof(T)))
+				{
+					thisTempAsset = ScriptableObject.CreateInstance(typeof(T)) as T;
+				}
+				else
+				{
+					thisTempAsset = (T)Activator.CreateInstance(typeof(T));
 				}
 			}
 			return thisTempAsset;
@@ -196,14 +194,43 @@ namespace UMA
 						Debug.LogError(error);
 						yield break;
 					}
-					var itemFilename = AssetBundleManager.AssetBundleIndexObject.GetFilenameFromAssetName(item.containingBundle, item.requiredAssetName, item.tempAsset.GetType().ToString());
-					if (item.tempAsset.GetType() == typeof(RaceData))
+					var assetType = item.tempAsset.GetType();
+					//deal with RuntimeAnimatorController funkiness
+					//the actual type of an instantiated clone of a RuntimeAnimatorController in the editor is UnityEditor.Animations.AnimatorController
+					if (assetType.ToString().IndexOf("AnimatorController") > -1)
+						assetType = typeof(RuntimeAnimatorController);
+					var itemFilename = AssetBundleManager.AssetBundleIndexObject.GetFilenameFromAssetName(item.containingBundle, item.requiredAssetName, assetType.ToString());
+					if (assetType == typeof(RaceData))
 					{
+						//HACK TO FIX RACEDATA DYNAMICDNACONVERTERS DYNAMICDNA ASSETS CAUSING LOAD FAILURES in UNITY 5.5+
+						//As of Unity 5.5 a bug has reappeared when loading some types of assets that reference assets in other bundles.
+						//AssetBundleManager successfully ensures these required bundles are loaded first, but even so Unity fils to load
+						//the required asset from them in some cases, notably it seems when the required asset is set in the field of a Prefab (like our DNAAssets are)
+						//To fix this generally we could 'LoadAllAssets' from any dependent bundles, but this could incur significant memory overhead
+						//So for now we will just fix this for UMA and hope a patch is forthcoming in a subsequent version of Unity 
+						//FIXED as of Unity5.6.2f1
+#if UNITY_5_5 || UNITY_5_6_0 || UNITY_5_6_1
+						if (AssetBundleManager.AssetBundleIndexObject.GetAllDependencies(item.containingBundle).Length > 0)
+						{
+							var allDeps = AssetBundleManager.AssetBundleIndexObject.GetAllDependencies(item.containingBundle);
+							for (int i = 0; i < allDeps.Length; i++)
+							{
+								string depsError = "";
+								LoadedAssetBundle depsBundle = AssetBundleManager.GetLoadedAssetBundle(allDeps[i], out depsError);
+								if (String.IsNullOrEmpty(depsError) && depsBundle != null)
+								{
+									depsBundle.m_AssetBundle.LoadAllAssets<DynamicUMADnaAsset>();
+								}
+							}
+						}
+#endif
 						RaceData actualRace = loadedBundleAB.LoadAsset<RaceData>(itemFilename);
 						UMAContext.Instance.raceLibrary.AddRace(actualRace);
 						UMAContext.Instance.raceLibrary.UpdateDictionary();
+						//Refresh DCS so that anything that this race is cross compatible with gets added to its list of available recipes
+						(UMAContext.Instance.dynamicCharacterSystem as DynamicCharacterSystem).RefreshRaceKeys();
 					}
-					else if (item.tempAsset.GetType() == typeof(SlotDataAsset))
+					else if (assetType == typeof(SlotDataAsset))
 					{
 						SlotDataAsset thisSlot = null;
 						thisSlot = loadedBundleAB.LoadAsset<SlotDataAsset>(itemFilename);
@@ -216,7 +243,7 @@ namespace UMA
 							Debug.LogWarning("[DynamicAssetLoader] could not add downloaded slot" + item.requiredAssetName);
 						}
 					}
-					else if (item.tempAsset.GetType() == typeof(OverlayDataAsset))
+					else if (assetType == typeof(OverlayDataAsset))
 					{
 						OverlayDataAsset thisOverlay = null;
 						thisOverlay = loadedBundleAB.LoadAsset<OverlayDataAsset>(itemFilename);
@@ -229,22 +256,22 @@ namespace UMA
 							Debug.LogWarning("[DynamicAssetLoader] could not add downloaded overlay" + item.requiredAssetName + " from assetbundle " + item.containingBundle);
 						}
 					}
-					else if (item.tempAsset.GetType() == typeof(UMATextRecipe))
+					else if (assetType == typeof(UMATextRecipe))
 					{
 						UMATextRecipe downloadedRecipe = loadedBundleAB.LoadAsset<UMATextRecipe>(itemFilename);
-						(UMAContext.Instance.dynamicCharacterSystem as UMACharacterSystem.DynamicCharacterSystem).AddRecipe(downloadedRecipe);
+						(UMAContext.Instance.dynamicCharacterSystem as DynamicCharacterSystem).AddRecipe(downloadedRecipe);
 					}
-					else if (item.tempAsset.GetType() == typeof(UMAWardrobeRecipe))
+					else if (assetType == typeof(UMAWardrobeRecipe))
 					{
 						UMAWardrobeRecipe downloadedRecipe = loadedBundleAB.LoadAsset<UMAWardrobeRecipe>(itemFilename);
-						(UMAContext.Instance.dynamicCharacterSystem as UMACharacterSystem.DynamicCharacterSystem).AddRecipe(downloadedRecipe);
+						(UMAContext.Instance.dynamicCharacterSystem as DynamicCharacterSystem).AddRecipe(downloadedRecipe);
 					}
 					else if (item.dynamicCallback.Count > 0)
 					{
 						//get the asset as whatever the type of the tempAsset is
 						//send this as an array to the dynamicCallback
-						var downloadedAsset = loadedBundleAB.LoadAsset(itemFilename, item.tempAsset.GetType());
-						var downloadedAssetArray = Array.CreateInstance(item.tempAsset.GetType(), 1);
+						var downloadedAsset = loadedBundleAB.LoadAsset(itemFilename, assetType);
+						var downloadedAssetArray = Array.CreateInstance(assetType, 1);
 						downloadedAssetArray.SetValue(downloadedAsset, 0);
 						for (int i = 0; i < item.dynamicCallback.Count; i++)
 						{

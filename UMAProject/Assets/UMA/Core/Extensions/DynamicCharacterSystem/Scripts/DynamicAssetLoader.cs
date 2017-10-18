@@ -6,9 +6,9 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine.UI;
-using UMAAssetBundleManager;
+using UMA.AssetBundles;
 
-namespace UMA
+namespace UMA.CharacterSystem
 {
     public class DynamicAssetLoader : MonoBehaviour
     {
@@ -50,14 +50,7 @@ namespace UMA
         [HideInInspector]
         public bool isInitialized = false;
         [Space]
-        //Default assets fields
-        //TODO These should be sent by whatever requested that type of asset so that more types than this can request assets and get a placeholder back while the asset is downloading
-        public RaceData placeholderRace;//temp race based on UMAMale with a baseRecipe to generate a temp umaMale TODO: Could have a female too and search the required racename to see if it contains female...
-        public UMATextRecipe placeholderWardrobeRecipe;//empty temp wardrobe recipe
-        public SlotDataAsset placeholderSlot;//empty temp slot
-        public OverlayDataAsset placeholderOverlay;//empty temp overlay. Would be nice if there was some way we could have a shader on this that would 'fill up' as assets loaded maybe?
-                                                   //TODO: Just visible for dev
-                                                   //[System.NonSerialized]//not sure about this one
+        [System.NonSerialized]
         [ReadOnly]
         public DownloadingAssetsList downloadingAssets = new DownloadingAssetsList();
 
@@ -277,7 +270,7 @@ namespace UMA
                 var context = UMAContext.FindInstance();
                 if (context != null)
                 {
-                    if ((context.dynamicCharacterSystem != null && (context.dynamicCharacterSystem as UMACharacterSystem.DynamicCharacterSystem).dynamicallyAddFromAssetBundles)
+                    if ((context.dynamicCharacterSystem != null && (context.dynamicCharacterSystem as DynamicCharacterSystem).dynamicallyAddFromAssetBundles)
                         || (context.raceLibrary != null && (context.raceLibrary as DynamicRaceLibrary).dynamicallyAddFromAssetBundles)
                         || (context.slotLibrary != null && (context.slotLibrary as DynamicSlotLibrary).dynamicallyAddFromAssetBundles)
                         || (context.overlayLibrary != null && (context.overlayLibrary as DynamicOverlayLibrary).dynamicallyAddFromAssetBundles))
@@ -544,9 +537,9 @@ namespace UMA
             }
             LoadedAssetBundle loadedBundle = AssetBundleManager.GetLoadedAssetBundle(bundle, out error);
             float elapsedTime = Time.realtimeSinceStartup - startTime;
-            Debug.Log(bundle + (error != null ? " was not" : " was") + " loaded successfully in " + elapsedTime + " seconds");
-            if (error != null)
-            {
+			Debug.Log(bundle + (!String.IsNullOrEmpty(error) ? " was not" : " was") + " loaded successfully in " + elapsedTime + " seconds");
+			if (!String.IsNullOrEmpty(error))
+			{
                 Debug.LogError("[DynamicAssetLoader] Bundle Load Error: " + error);
                 yield break;
             }
@@ -564,10 +557,10 @@ namespace UMA
                     }
                 }
             }
-            UMACharacterSystem.DynamicCharacterSystem thisDCS = null;
+            DynamicCharacterSystem thisDCS = null;
             if (UMAContext.Instance != null)
             {
-                thisDCS = UMAContext.Instance.dynamicCharacterSystem as UMACharacterSystem.DynamicCharacterSystem;
+                thisDCS = UMAContext.Instance.dynamicCharacterSystem as DynamicCharacterSystem;
             }
             if (thisDCS != null)
             {
@@ -612,8 +605,6 @@ namespace UMA
             //search UMA AssetIndex
             if (searchResources)
             {
-                //using UMAAssetIndex
-                //if (UMAAssetIndex.Instance != null)
                 //using UMAAssetIndexer!!
                 if (UMAAssetIndexer.Instance != null)
                 {
@@ -631,7 +622,7 @@ namespace UMA
                     bool foundHere = AddAssetsFromAssetBundles<T>(ref assetBundlesUsedDict, ref assetsToReturn, downloadAssetsEnabled, bundlesToSearchArray, assetNameHash, assetName, callback, forceDownloadAll);
                     found = foundHere == true ? true : found;
                 }
-            if (callback != null)
+            if (callback != null && assetsToReturn.Count > 0)
             {
                 callback(assetsToReturn.ToArray());
             }
@@ -647,9 +638,6 @@ namespace UMA
         public bool AddAssetsFromResourcesIndex<T>(ref List<T> assetsToReturn, string[] resourcesFolderPathArray, int? assetNameHash = null, string assetName = "") where T : UnityEngine.Object
         {
             bool found = false;
-            //use new UMAAssetIndex
-            //if (UMAAssetIndex.Instance == null)
-            //	return found;
             //Use new UMAAssetIndexer!!
             if (UMAAssetIndexer.Instance == null)
                 return found;
@@ -658,19 +646,22 @@ namespace UMA
                 T foundAsset = null;
                 if (assetNameHash != null)
                 {
-                    //Using UMAAssetIndex
-                    //foundAsset = (UMAAssetIndex.Instance.LoadAsset<T>((int)assetNameHash, resourcesFolderPathArray) as T);
                     //using UMAAssetIndexer
-                    foundAsset = (UMAAssetIndexer.Instance.GetAsset<T>((int)assetNameHash) as T);
+                    foundAsset = (UMAAssetIndexer.Instance.GetAsset<T>((int)assetNameHash, resourcesFolderPathArray) as T);
                 }
                 else if (assetName != "")
                 {
-                    //Using UMAAssetIndex
-                    //foundAsset = (UMAAssetIndex.Instance.LoadAsset<T>(assetName, resourcesFolderPathArray) as T);
-                    //using UMAAssetIndexer
-                    foundAsset = (UMAAssetIndexer.Instance.GetAsset<T>(assetName) as T);
-                }
-                if (foundAsset != null)
+					//check if its a Placeholder asset that has been requested directly- this happens when the UMATextRecipePlaceholder tries to load
+					var typePlaceholderName = typeof(T).ToString().Replace(typeof(T).Namespace + ".", "") + "Placeholder";
+					if (typePlaceholderName == assetName || typePlaceholderName + "_Slot" == assetName)
+					{
+						foundAsset = GetPlaceholderAsset<T>(assetName);
+					}
+					//using UMAAssetIndexer
+					if (foundAsset == null)
+						foundAsset = (UMAAssetIndexer.Instance.GetAsset<T>(assetName, resourcesFolderPathArray) as T);
+				}
+				if (foundAsset != null)
                 {
                     assetsToReturn.Add(foundAsset);
                     found = true;
@@ -678,26 +669,44 @@ namespace UMA
             }
             else if (assetNameHash == null && assetName == "")
             {
-                //Using UMAAssetIndex
-                //assetsToReturn.AddRange(UMAAssetIndex.Instance.LoadAllAssetsOfType<T>(resourcesFolderPathArray) as List<T>);
-                //Using UMAAssetIndexer
-                assetsToReturn.AddRange(UMAAssetIndexer.Instance.GetAllAssets<T>() as List<T>);
-                found = assetsToReturn.Count > 0;
+				//Using UMAAssetIndexer
+				List<T> assetIndexerAssets = UMAAssetIndexer.Instance.GetAllAssets<T>(resourcesFolderPathArray) as List<T>;
+				List<T> assetIndexerAssetsToAdd = new List<T>();
+				//UMAAssetIndexer returns null assets so check for that
+				if (assetIndexerAssets.Count > 0)
+				{
+					for (int i = 0; i < assetIndexerAssets.Count; i++)
+					{
+						if (assetIndexerAssets[i] != null)
+						{
+							assetIndexerAssetsToAdd.Add(assetIndexerAssets[i]);
+						}
+					}
+				}
+				assetsToReturn.AddRange(assetIndexerAssetsToAdd);
+				found = assetsToReturn.Count > 0;
             }
             return found;
         }
 
-        /// <summary>
-        /// Generic Library function to search AssetBundles for a type of asset, optionally filtered by bundle name, and asset assetNameHash or assetName. 
-        /// Optionally sends the found assets to the supplied callback for processing.
-        /// Automatically performs the operation in SimulationMode if AssetBundleManager.SimulationMode is enabled or if the Application is not playing.
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="bundlesToSearch"></param>
-        /// <param name="assetNameHash"></param>
-        /// <param name="assetName"></param>
-        /// <param name="callback"></param>
-        public bool AddAssetsFromAssetBundles<T>(ref Dictionary<string, List<string>> assetBundlesUsedDict, ref List<T> assetsToReturn, bool downloadAssetsEnabled, string[] bundlesToSearchArray, int? assetNameHash = null, string assetName = "", Action<T[]> callback = null, bool forceDownloadAll = false) where T : UnityEngine.Object
+		public T GetPlaceholderAsset<T>(string placeholderName) where T : UnityEngine.Object
+		{
+			if (placeholderName.IndexOf("Placeholder") == -1)
+				return null;
+			return (T)Resources.Load<T>("PlaceholderAssets/" + placeholderName) as T;
+		}
+
+		/// <summary>
+		/// Generic Library function to search AssetBundles for a type of asset, optionally filtered by bundle name, and asset assetNameHash or assetName. 
+		/// Optionally sends the found assets to the supplied callback for processing.
+		/// Automatically performs the operation in SimulationMode if AssetBundleManager.SimulationMode is enabled or if the Application is not playing.
+		/// </summary>
+		/// <typeparam name="T"></typeparam>
+		/// <param name="bundlesToSearch"></param>
+		/// <param name="assetNameHash"></param>
+		/// <param name="assetName"></param>
+		/// <param name="callback"></param>
+		public bool AddAssetsFromAssetBundles<T>(ref Dictionary<string, List<string>> assetBundlesUsedDict, ref List<T> assetsToReturn, bool downloadAssetsEnabled, string[] bundlesToSearchArray, int? assetNameHash = null, string assetName = "", Action<T[]> callback = null, bool forceDownloadAll = false) where T : UnityEngine.Object
         {
 #if UNITY_EDITOR
             if (AssetBundleManager.SimulateAssetBundleInEditor)
@@ -939,6 +948,8 @@ namespace UMA
         /// <param name="callback"></param>
         bool SimulateAddAssetsFromAssetBundlesNew<T>(ref Dictionary<string, List<string>> assetBundlesUsedDict, ref List<T> assetsToReturn, string[] bundlesToSearchArray, int? assetNameHash = null, string assetName = "", Action<T[]> callback = null, bool forceDownloadAll = false) where T : UnityEngine.Object
         {
+            var st = UMAAssetIndexer.StartTimer();
+
             Type typeParameterType = typeof(T);
             var typeString = typeParameterType.FullName;
             int currentSimulatedDownloadedBundlesCount = simulatedDownloadedBundles.Count;
@@ -1017,7 +1028,22 @@ namespace UMA
                 }
                 foreach (string path in possiblePaths)
                 {
-                    T target = (T)AssetDatabase.LoadAssetAtPath(path, typeof(T));
+					// the line T target = (T)AssetDatabase.LoadAssetAtPath(path, typeof(T)); below appears to load the asset *and then* check if its a type of T
+					// this leads to a big slowdown the first time this happens. Its much quicker (although messier) to do the following as getting the paths
+					// does not load the actual asset. This is also slightly quicker than getting all paths of type T outside this loop
+					// the 't:' filter needs the type to not have a namespace
+					var typeForSearch = typeof(T).ToString().Replace(typeof(T).Namespace + ".", "");
+					var searchString = assetName == "" ? "t:" + typeForSearch : "t:" + typeForSearch + " " + assetName;
+					var containingPath = System.IO.Path.GetDirectoryName(path);
+					var typeGUIDs = AssetDatabase.FindAssets(searchString, new string[1] { containingPath });
+					var typePaths = new List<string>(typeGUIDs.Length);
+					for (int ti = 0; ti < typeGUIDs.Length; ti++)
+						typePaths.Add(AssetDatabase.GUIDToAssetPath(typeGUIDs[ti]));
+
+					if (!typePaths.Contains(path))
+						continue;
+
+					T target = (T)AssetDatabase.LoadAssetAtPath(path, typeof(T));
                     if (target != null)
                     {
                         assetFound = true;
@@ -1094,7 +1120,7 @@ namespace UMA
             //10012017 Only do this if thisDCS.addAllRecipesFromDownloadedBundles is true
             if (currentSimulatedDownloadedBundlesCount != simulatedDownloadedBundles.Count /*&& typeof(T) != typeof(RaceData)*/ && assetName != "")
             {
-                var thisDCS = UMAContext.Instance.dynamicCharacterSystem as UMACharacterSystem.DynamicCharacterSystem;
+                var thisDCS = UMAContext.Instance.dynamicCharacterSystem as DynamicCharacterSystem;
                 if (thisDCS != null)
                 {
                     if (thisDCS.addAllRecipesFromDownloadedBundles)
@@ -1107,6 +1133,7 @@ namespace UMA
                     }
                 }
             }
+            UMAAssetIndexer.StopTimer(st, "SimulateAddAssetsFromAssetBundlesNew Type=" + typeof(T).Name);
             return assetFound;
         }
 #endif
@@ -1128,7 +1155,7 @@ namespace UMA
             }
             var allAssetBundlePaths = AssetDatabase.GetAssetPathsFromAssetBundle(assetBundleToLoad);
             //We need to add the recipes from the bundle to DCS, other assets add them selves as they are requested by the recipes
-            var thisDCS = UMAContext.Instance.dynamicCharacterSystem as UMACharacterSystem.DynamicCharacterSystem;
+            var thisDCS = UMAContext.Instance.dynamicCharacterSystem as DynamicCharacterSystem;
             bool dcsNeedsRefresh = false;
             if (thisDCS)
             {

@@ -19,6 +19,15 @@ namespace UMA
 		public bool convertMipMaps;
         [Tooltip("Initial size of the texture atlas (square)")]
 		public int atlasResolution;
+		[Tooltip("The default overlay to display if a slot has meshData and no overlays assigned")]
+		public OverlayDataAsset defaultOverlayAsset;
+
+		protected OverlayData _defaultOverlayData;
+		public OverlayData defaultOverlaydata
+		{
+			get { return _defaultOverlayData; }
+		}
+
 		/// <summary>
 		/// Adds the dirty UMA to the update queue.
 		/// </summary>
@@ -106,17 +115,20 @@ namespace UMA
 
 				foreach(AnimatorControllerParameter param in parameters)
 				{
-					switch(param.type)
-					{
-						case AnimatorControllerParameterType.Bool:
-							animator.SetBool(param.nameHash, param.defaultBool);
-							break;
-						case AnimatorControllerParameterType.Float:
-							animator.SetFloat(param.nameHash, param.defaultFloat);
-							break;
-						case AnimatorControllerParameterType.Int:
-							animator.SetInteger(param.nameHash, param.defaultInt);
-							break;
+					if (!animator.IsParameterControlledByCurve(param.nameHash))
+                	{
+						switch(param.type)
+						{
+							case AnimatorControllerParameterType.Bool:
+								animator.SetBool(param.nameHash, param.defaultBool);
+								break;
+							case AnimatorControllerParameterType.Float:
+								animator.SetFloat(param.nameHash, param.defaultFloat);
+								break;
+							case AnimatorControllerParameterType.Int:
+								animator.SetInteger(param.nameHash, param.defaultInt);
+								break;
+						}
 					}
 				}
 
@@ -179,7 +191,7 @@ namespace UMA
 		/// Creates a new avatar for a UMA character.
 		/// </summary>
 		/// <param name="umaData">UMA data.</param>
-		/// <param name="animator>Animator.</param>
+		/// <param name="animator">Animator.</param>
 		public static void SetAvatar(UMAData umaData, Animator animator)
 		{
 			var umaTPose = umaData.umaRecipe.raceData.TPose;
@@ -278,10 +290,11 @@ namespace UMA
 			bone.scale = trans.localScale;
 		}
 
+		private static List<SkeletonBone> newBones = new List<SkeletonBone>();
 		private static void SkeletonModifier(UMAData umaData, ref SkeletonBone[] bones, HumanBone[] human)
 		{
 			int missingBoneCount = 0;
-			var newBones = new List<SkeletonBone>(bones.Length);
+			newBones.Clear();
 
 			while (!umaData.skeleton.HasBone(UMAUtils.StringToHash(bones[missingBoneCount].name)))
 			{
@@ -318,7 +331,7 @@ namespace UMA
 				{
 					skeletonbone.position = boneGO.transform.localPosition;
 					skeletonbone.scale = boneGO.transform.localScale;
-					skeletonbone.rotation = umaData.skeleton.GetTPoseCorrectedRotation(boneHash, boneGO.transform.localRotation);
+					skeletonbone.rotation = umaData.skeleton.GetTPoseCorrectedRotation(boneHash, skeletonbone.rotation);
 					newBones.Add(skeletonbone);
 				}
 			}

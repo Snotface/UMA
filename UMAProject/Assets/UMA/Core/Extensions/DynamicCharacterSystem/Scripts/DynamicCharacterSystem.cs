@@ -2,13 +2,9 @@ using UnityEngine;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
-using System.Collections;
 using System.Collections.Generic;
-using System;
-using UMA;
-using UMAAssetBundleManager;
 
-namespace UMACharacterSystem
+namespace UMA.CharacterSystem
 {
 	public class DynamicCharacterSystem : DynamicCharacterSystemBase
 	{
@@ -82,7 +78,7 @@ namespace UMACharacterSystem
 				//we need to check that this is not null- the user may not have downloaded it yet
 				if (possibleRaces[i] == null)
 					continue;
-				if (DynamicAssetLoader.Instance != null && possibleRaces[i].raceName == (DynamicAssetLoader.Instance.placeholderRace != null ? DynamicAssetLoader.Instance.placeholderRace.raceName : "PlaceholderRace"))
+				if (possibleRaces[i].raceName == "RaceDataPlaceholder")
 					continue;
 				if (Recipes.ContainsKey(possibleRaces[i].raceName))
 				{
@@ -127,7 +123,7 @@ namespace UMACharacterSystem
 			var possibleRaces = (context.raceLibrary as DynamicRaceLibrary).GetAllRacesBase();
 			for (int i = 0; i < possibleRaces.Length; i++)
 			{
-				if (!Recipes.ContainsKey(possibleRaces[i].raceName) && possibleRaces[i].raceName != (DynamicAssetLoader.Instance.placeholderRace != null ? DynamicAssetLoader.Instance.placeholderRace.raceName : "PlaceholderRace"))
+				if (!Recipes.ContainsKey(possibleRaces[i].raceName) && possibleRaces[i].raceName != "RaceDataPlaceholder")
 				{
 					Recipes.Add(possibleRaces[i].raceName, new Dictionary<string, List<UMATextRecipe>>());
 				}
@@ -169,8 +165,8 @@ namespace UMACharacterSystem
 					//we need to check that this is not null- the user may not have downloaded it yet
 					if (possibleRaces[i] != null)
 					{
-						if (!Recipes.ContainsKey(possibleRaces[i].raceName) && possibleRaces[i].raceName != (DynamicAssetLoader.Instance.placeholderRace != null ? DynamicAssetLoader.Instance.placeholderRace.raceName : "PlaceholderRace"))
-						{
+						if (!Recipes.ContainsKey(possibleRaces[i].raceName) && possibleRaces[i].raceName != "RaceDataPlaceholder")
+                        {
 							Recipes.Add(possibleRaces[i].raceName, new Dictionary<string, List<UMATextRecipe>>());
 						}
 					}
@@ -346,8 +342,8 @@ namespace UMACharacterSystem
 							RaceData raceKeyRace = (context.raceLibrary as DynamicRaceLibrary).GetRace(racekey, false);
 							if (raceKeyRace == null)
 								continue;
-							if (raceKeyRace.backwardsCompatibleWith.Contains(u.compatibleRaces[i]) && raceKeyRace.wardrobeSlots.Contains(thisWardrobeSlot))
-							{
+							if (raceKeyRace.IsCrossCompatibleWith(u.compatibleRaces[i]) && (raceKeyRace.wardrobeSlots.Contains(thisWardrobeSlot) || thisWardrobeSlot == "WardrobeCollection"))
+                            {
 								Dictionary<string, List<UMATextRecipe>> RaceRecipes = Recipes[racekey];
 								if (!RaceRecipes.ContainsKey(thisWardrobeSlot))
 								{
